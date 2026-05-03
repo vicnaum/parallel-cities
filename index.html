@@ -64,16 +64,21 @@
       top: 18px;
       left: 22px;
       right: 22px;
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(0, max-content) minmax(190px, 1fr) minmax(0, max-content);
       align-items: stretch;
-      justify-content: space-between;
       gap: 12px;
       pointer-events: none;
     }
 
     .readout,
-    .control {
+    .control,
+    .brand {
       pointer-events: auto;
+    }
+
+    .readout,
+    .control {
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--panel);
@@ -85,6 +90,45 @@
       display: grid;
       grid-template-columns: repeat(4, minmax(108px, auto));
       overflow: hidden;
+    }
+
+    .brand {
+      align-self: center;
+      justify-self: center;
+      min-width: 0;
+      text-align: center;
+    }
+
+    .brand-title {
+      margin: 0;
+      color: var(--ink);
+      font-size: 1.65rem;
+      font-weight: 820;
+      line-height: 1;
+    }
+
+    .brand-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 680;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .brand-links a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .brand-links a:hover {
+      color: var(--line);
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
 
     .metric {
@@ -241,12 +285,17 @@
       display: block;
     }
 
-    @media (max-width: 920px) {
+    @media (max-width: 1120px) {
       .topbar {
         top: 12px;
         left: 12px;
         right: 12px;
+        display: flex;
         flex-direction: column;
+      }
+
+      .brand {
+        padding: 2px 0;
       }
 
       .control {
@@ -278,6 +327,14 @@
 
       .metric-value {
         font-size: 1.05rem;
+      }
+
+      .brand-title {
+        font-size: 1.35rem;
+      }
+
+      .brand-links {
+        font-size: 0.72rem;
       }
 
       .city-panel {
@@ -317,6 +374,18 @@
         <div class="metric">
           <span class="metric-label">Shortest day</span>
           <span class="metric-value daylight" id="shortestDayValue">10h 43m</span>
+        </div>
+      </div>
+
+      <div class="brand" aria-label="Parallel Cities by vicnaum">
+        <h1 class="brand-title">Parallel Cities</h1>
+        <div class="brand-links">
+          <span>made by</span>
+          <a href="https://github.com/vicnaum" target="_blank" rel="noopener">@vicnaum</a>
+          <span aria-hidden="true">-</span>
+          <a href="https://github.com/vicnaum" target="_blank" rel="noopener">GitHub</a>
+          <span aria-hidden="true">/</span>
+          <a href="https://x.com/vicnaum" target="_blank" rel="noopener">X</a>
         </div>
       </div>
 
