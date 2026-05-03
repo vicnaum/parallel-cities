@@ -745,7 +745,7 @@
       ctx.stroke();
       ctx.restore();
 
-      const labelX = mapBounds.x + mapBounds.width - 76;
+      const labelX = mapBounds.x + 8;
       const labelY = clamp(y - 16, mapBounds.y + 6, mapBounds.y + mapBounds.height - 34);
       drawParallelLabel(labelX, labelY, label, dashed);
     }
