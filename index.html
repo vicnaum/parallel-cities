@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parallel Cities</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #5c6875;
+      --panel: rgba(255, 255, 255, 0.9);
+      --panel-strong: rgba(255, 255, 255, 0.97);
+      --line: #d21f2b;
+      --line-soft: rgba(210, 31, 43, 0.54);
+      --border: rgba(32, 48, 63, 0.16);
+      --shadow: 0 16px 44px rgba(18, 30, 42, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #d8ecf2;
+    }
+
+    .app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(236, 247, 250, 0.98), rgba(199, 227, 235, 0.96)),
+        #d8ecf2;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .topbar,
+    .city-panel,
+    .status {
+      position: absolute;
+      z-index: 2;
+    }
+
+    .topbar {
+      top: 18px;
+      left: 22px;
+      right: 22px;
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .readout,
+    .control {
+      pointer-events: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .readout {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(116px, auto));
+      overflow: hidden;
+    }
+
+    .metric {
+      min-width: 0;
+      padding: 12px 15px 11px;
+    }
+
+    .metric + .metric {
+      border-left: 1px solid var(--border);
+    }
+
+    .metric-label,
+    .control-label,
+    .city-title {
+      display: block;
+      color: var(--muted);
+      font-size: 0.73rem;
+      font-weight: 700;
+      line-height: 1.15;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 4px;
+      color: var(--ink);
+      font-size: 1.25rem;
+      font-weight: 760;
+      line-height: 1.05;
+      white-space: nowrap;
+    }
+
+    .metric-value.primary {
+      color: var(--line);
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: auto minmax(150px, 260px) 42px;
+      align-items: center;
+      gap: 11px;
+      padding: 11px 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--line);
+    }
+
+    .numeric {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      color: var(--line);
+      font-size: 0.9rem;
+      font-weight: 780;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .city-panel {
+      left: 22px;
+      right: 22px;
+      bottom: 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .city-list {
+      min-width: 0;
+      min-height: 70px;
+      height: 150px;
+      max-height: 150px;
+      overflow: hidden;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel-strong);
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+    }
+
+    .city-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 9px;
+    }
+
+    .city-count {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 650;
+    }
+
+    .city-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .city-chip {
+      max-width: 100%;
+      overflow: hidden;
+      padding: 5px 7px;
+      border: 1px solid rgba(32, 48, 63, 0.11);
+      border-radius: 999px;
+      color: #26313c;
+      background: rgba(244, 248, 250, 0.96);
+      font-size: 0.79rem;
+      font-weight: 640;
+      line-height: 1.15;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .city-chip.same {
+      border-color: rgba(210, 31, 43, 0.25);
+      color: #a31520;
+      background: rgba(255, 239, 240, 0.98);
+    }
+
+    .city-chip.mirror {
+      border-color: rgba(210, 31, 43, 0.16);
+      color: #803844;
+      background: rgba(255, 245, 246, 0.98);
+    }
+
+    .status {
+      top: 50%;
+      left: 50%;
+      display: none;
+      max-width: min(560px, calc(100vw - 44px));
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #293743;
+      background: var(--panel-strong);
+      box-shadow: var(--shadow);
+      transform: translate(-50%, -50%);
+    }
+
+    .status.visible {
+      display: block;
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        flex-direction: column;
+      }
+
+      .readout {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .metric {
+        padding: 10px 11px 9px;
+      }
+
+      .metric-value {
+        font-size: 1.05rem;
+      }
+
+      .control {
+        grid-template-columns: auto minmax(120px, 1fr) 42px;
+        padding: 9px 10px;
+      }
+
+      .city-panel {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        grid-template-columns: 1fr;
+      }
+
+      .city-list {
+        min-height: 58px;
+        height: 116px;
+        max-height: 116px;
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="Interactive world map with selectable latitude parallels">
+    <canvas id="map"></canvas>
+
+    <section class="topbar" aria-label="Latitude controls">
+      <div class="readout" aria-live="polite">
+        <div class="metric">
+          <span class="metric-label">Parallel</span>
+          <span class="metric-value primary" id="selectedValue">23°N</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Mirror</span>
+          <span class="metric-value" id="mirrorValue">23°S</span>
+        </div>
+      </div>
+
+      <label class="control">
+        <span class="control-label">Latitude</span>
+        <input id="latitude" type="range" min="-89.9" max="89.9" step="0.1" value="23">
+        <span class="numeric" id="numericValue">23°</span>
+      </label>
+    </section>
+
+    <section class="city-panel" aria-label="Cities near selected parallels">
+      <div class="city-list">
+        <div class="city-head">
+          <span class="city-title">Same Parallel</span>
+          <span class="city-count" id="sameCount">0 nearby</span>
+        </div>
+        <div class="city-items" id="sameCities"></div>
+      </div>
+      <div class="city-list">
+        <div class="city-head">
+          <span class="city-title">Opposite Parallel</span>
+          <span class="city-count" id="mirrorCount">0 nearby</span>
+        </div>
+        <div class="city-items" id="mirrorCities"></div>
+      </div>
+    </section>
+
+    <div class="status" id="status"></div>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("map");
+    const ctx = canvas.getContext("2d");
+    const selectedValue = document.getElementById("selectedValue");
+    const mirrorValue = document.getElementById("mirrorValue");
+    const numericValue = document.getElementById("numericValue");
+    const latitudeInput = document.getElementById("latitude");
+    const sameCitiesEl = document.getElementById("sameCities");
+    const mirrorCitiesEl = document.getElementById("mirrorCities");
+    const sameCountEl = document.getElementById("sameCount");
+    const mirrorCountEl = document.getElementById("mirrorCount");
+    const statusEl = document.getElementById("status");
+
+    const cityTolerance = 0.35;
+    const maxCityChips = 6;
+    const maxMapLabels = 6;
+    const maxCityDots = 650;
+    const largeCityThreshold = 5000000;
+    const megaCityThreshold = 10000000;
+    const superCityThreshold = 20000000;
+    const maxDevicePixelRatio = 2;
+
+    let selectedLat = 23;
+    let countries = [];
+    let cities = [];
+    let mapBounds = { x: 0, y: 0, width: 1, height: 1 };
+    let isDragging = false;
+    let sameMatches = [];
+    let mirrorMatches = [];
+    let worldReady = false;
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function roundLat(value) {
+      return Math.round(clamp(value, -89.9, 89.9) * 10) / 10;
+    }
+
+    function formatLatitude(value, options = {}) {
+      const lat = roundLat(value);
+      if (Math.abs(lat) < 0.05) return "0°";
+      const abs = Math.abs(lat);
+      const rounded = Math.round(abs * 10) / 10;
+      const body = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+      const suffix = lat > 0 ? "N" : "S";
+      return options.noHemisphere ? `${body}°` : `${body}°${suffix}`;
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle("visible", Boolean(message));
+    }
+
+    function resizeCanvas() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDevicePixelRatio);
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const margin = width < 760 ? 12 : 24;
+      const gap = width < 760 ? 14 : 18;
+      const topRect = document.querySelector(".topbar").getBoundingClientRect();
+      const cityRect = document.querySelector(".city-panel").getBoundingClientRect();
+      const availableTop = clamp(topRect.bottom + gap, margin, height - margin - 120);
+      const availableBottom = Math.max(availableTop + 120, cityRect.top - gap);
+      const maxWidth = Math.max(240, width - margin * 2);
+      const maxHeight = Math.max(120, availableBottom - availableTop);
+      let mapWidth = maxWidth;
+      let mapHeight = mapWidth / 2;
+
+      if (mapHeight > maxHeight) {
+        mapHeight = maxHeight;
+        mapWidth = mapHeight * 2;
+      }
+
+      mapBounds = {
+        x: (width - mapWidth) / 2,
+        y: availableTop + (maxHeight - mapHeight) / 2,
+        width: mapWidth,
+        height: mapHeight
+      };
+
+      if (worldReady) {
+        updateReadouts();
+      }
+      draw();
+    }
+
+    function project(lon, lat) {
+      return {
+        x: mapBounds.x + ((lon + 180) / 360) * mapBounds.width,
+        y: mapBounds.y + ((90 - lat) / 180) * mapBounds.height
+      };
+    }
+
+    function yToLatitude(y) {
+      const ratio = clamp((y - mapBounds.y) / mapBounds.height, 0, 1);
+      return roundLat(90 - ratio * 180);
+    }
+
+    function pointerPosition(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
+
+    function setLatitude(value) {
+      selectedLat = roundLat(value);
+      latitudeInput.value = selectedLat;
+      updateReadouts();
+      draw();
+    }
+
+    function updateReadouts() {
+      const mirrorLat = -selectedLat;
+      selectedValue.textContent = Math.abs(selectedLat) < 0.05 ? "Equator" : formatLatitude(selectedLat);
+      mirrorValue.textContent = Math.abs(selectedLat) < 0.05 ? "Same line" : formatLatitude(mirrorLat);
+      numericValue.textContent = formatLatitude(selectedLat, { noHemisphere: true });
+
+      sameMatches = nearestCities(selectedLat);
+      mirrorMatches = Math.abs(selectedLat) < 0.05 ? [] : nearestCities(mirrorLat);
+      renderCityList(sameCitiesEl, sameCountEl, sameMatches, "same");
+      renderCityList(mirrorCitiesEl, mirrorCountEl, mirrorMatches, "mirror");
+    }
+
+    function nearestCities(lat) {
+      return cities
+        .map((city) => {
+          const delta = Math.abs(city.lat - lat);
+          const tolerance = cityTolerance + extraToleranceForCity(city);
+          return {
+            ...city,
+            delta,
+            tolerance,
+            rank: delta / tolerance - rankBoostForCity(city)
+          };
+        })
+        .filter((city) => city.delta <= city.tolerance)
+        .sort((a, b) => a.rank - b.rank || a.delta - b.delta || b.population - a.population || a.name.localeCompare(b.name));
+    }
+
+    function extraToleranceForCity(city) {
+      const extraPixels = extraPixelsForCity(city);
+      return extraPixels * 180 / Math.max(mapBounds.height, 1);
+    }
+
+    function extraPixelsForCity(city) {
+      if (city.population >= superCityThreshold) return 10;
+      if (city.population >= megaCityThreshold) return 8;
+      if (city.population >= largeCityThreshold) return 5;
+      return 0;
+    }
+
+    function rankBoostForCity(city) {
+      if (city.population >= superCityThreshold) return 0.22;
+      if (city.population >= megaCityThreshold) return 0.18;
+      if (city.population >= largeCityThreshold) return 0.12;
+      return 0;
+    }
+
+    function renderCityList(container, countEl, matches, kind) {
+      container.textContent = "";
+      countEl.textContent = matches.length > maxCityChips
+        ? `${maxCityChips} of ${matches.length}`
+        : `${matches.length} nearby`;
+
+      const visible = matches.slice(0, maxCityChips);
+      if (visible.length === 0) {
+        const chip = document.createElement("span");
+        chip.className = `city-chip ${kind}`;
+        chip.textContent = "No nearby cities";
+        container.appendChild(chip);
+        return;
+      }
+
+      for (const city of visible) {
+        const chip = document.createElement("span");
+        chip.className = `city-chip ${kind}`;
+        chip.title = `${city.name}, ${city.country} - ${formatLatitude(city.lat)}`;
+        chip.textContent = `${city.name} ${formatLatitude(city.lat)}`;
+        container.appendChild(chip);
+      }
+    }
+
+    function draw() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      drawOcean(width, height);
+      drawGraticule();
+
+      if (worldReady) {
+        drawCountries();
+        drawCityDots();
+      }
+
+      drawParallel(-selectedLat, true);
+      drawParallel(selectedLat, false);
+
+      if (worldReady) {
+        drawHighlightedCities(mirrorMatches.slice(0, maxMapLabels), true);
+        drawHighlightedCities(sameMatches.slice(0, maxMapLabels), false);
+      }
+    }
+
+    function drawOcean(width, height) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, "#e7f5f7");
+      gradient.addColorStop(1, "#c7e4eb");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      roundedRect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height, 6);
+      ctx.clip();
+      const ocean = ctx.createLinearGradient(0, mapBounds.y, 0, mapBounds.y + mapBounds.height);
+      ocean.addColorStop(0, "#b9dce8");
+      ocean.addColorStop(1, "#8ec7d6");
+      ctx.fillStyle = ocean;
+      ctx.fillRect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
+      ctx.restore();
+
+      ctx.strokeStyle = "rgba(40, 66, 82, 0.16)";
+      ctx.lineWidth = 1;
+      roundedRect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height, 6);
+      ctx.stroke();
+    }
+
+    function drawGraticule() {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
+      ctx.clip();
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.46)";
+
+      for (let lon = -150; lon <= 150; lon += 30) {
+        const a = project(lon, -90);
+        const b = project(lon, 90);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+
+      for (let lat = -75; lat <= 75; lat += 15) {
+        const a = project(-180, lat);
+        const b = project(180, lat);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+
+      const eqA = project(-180, 0);
+      const eqB = project(180, 0);
+      ctx.strokeStyle = "rgba(38, 62, 74, 0.32)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(eqA.x, eqA.y);
+      ctx.lineTo(eqB.x, eqB.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawCountries() {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
+      ctx.clip();
+      ctx.fillStyle = "#d9dbb2";
+      ctx.strokeStyle = "rgba(87, 105, 91, 0.38)";
+      ctx.lineWidth = 0.65;
+
+      for (const feature of countries) {
+        const geometry = feature.geometry;
+        if (!geometry) continue;
+
+        if (geometry.type === "Polygon") {
+          drawPolygon(geometry.coordinates);
+        } else if (geometry.type === "MultiPolygon") {
+          for (const polygon of geometry.coordinates) {
+            drawPolygon(polygon);
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawPolygon(rings) {
+      ctx.beginPath();
+      for (const ring of rings) {
+        if (!ring.length) continue;
+        for (let i = 0; i < ring.length; i += 1) {
+          const [lon, lat] = ring[i];
+          const point = project(lon, lat);
+          if (i === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        }
+        ctx.closePath();
+      }
+      ctx.fill("evenodd");
+      ctx.stroke();
+    }
+
+    function drawCityDots() {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
+      ctx.clip();
+
+      for (const city of cities.slice(0, maxCityDots)) {
+        const point = project(city.lon, city.lat);
+        const radius = city.population > 10000000 ? 2.25 : city.population > 4000000 ? 1.75 : 1.15;
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(30, 43, 54, 0.24)";
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function drawHighlightedCities(matches, mirror) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
+      ctx.clip();
+
+      const used = [];
+      for (const city of matches) {
+        const point = project(city.lon, city.lat);
+        const color = mirror ? "rgba(166, 49, 60, 0.82)" : "#d21f2b";
+        ctx.beginPath();
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+        ctx.lineWidth = 2;
+        ctx.arc(point.x, point.y, 4.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        const label = city.name;
+        const labelBox = labelRect(point.x + 8, point.y - 17, label);
+        const shifted = avoidCollisions(labelBox, used);
+        used.push(shifted);
+        drawCityLabel(shifted, label, mirror);
+      }
+
+      ctx.restore();
+    }
+
+    function avoidCollisions(box, used) {
+      let adjusted = { ...box };
+      for (let pass = 0; pass < 5; pass += 1) {
+        const hit = used.some((other) => intersects(adjusted, other));
+        if (!hit) return adjusted;
+        adjusted.y += adjusted.height + 3;
+      }
+      return adjusted;
+    }
+
+    function intersects(a, b) {
+      return a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y;
+    }
+
+    function labelRect(x, y, text) {
+      ctx.font = "700 12px Inter, ui-sans-serif, system-ui, sans-serif";
+      const width = Math.ceil(ctx.measureText(text).width) + 12;
+      const height = 20;
+      return {
+        x: clamp(x, mapBounds.x + 5, mapBounds.x + mapBounds.width - width - 5),
+        y: clamp(y, mapBounds.y + 5, mapBounds.y + mapBounds.height - height - 5),
+        width,
+        height
+      };
+    }
+
+    function drawCityLabel(box, text, mirror) {
+      ctx.fillStyle = mirror ? "rgba(255, 247, 248, 0.91)" : "rgba(255, 242, 243, 0.95)";
+      ctx.strokeStyle = mirror ? "rgba(210, 31, 43, 0.18)" : "rgba(210, 31, 43, 0.28)";
+      ctx.lineWidth = 1;
+      roundedRect(box.x, box.y, box.width, box.height, 7);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = mirror ? "#803844" : "#a31520";
+      ctx.font = "700 12px Inter, ui-sans-serif, system-ui, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, box.x + 6, box.y + box.height / 2 + 0.5);
+    }
+
+    function drawParallel(lat, dashed) {
+      if (Math.abs(selectedLat) < 0.05 && dashed) return;
+
+      const y = project(0, lat).y;
+      const label = Math.abs(lat) < 0.05 ? "Equator" : formatLatitude(lat);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
+      ctx.clip();
+      ctx.lineWidth = dashed ? 2.3 : 3;
+      ctx.strokeStyle = dashed ? "rgba(210, 31, 43, 0.56)" : "#d21f2b";
+      ctx.setLineDash(dashed ? [12, 9] : []);
+      ctx.beginPath();
+      ctx.moveTo(mapBounds.x, y);
+      ctx.lineTo(mapBounds.x + mapBounds.width, y);
+      ctx.stroke();
+      ctx.restore();
+
+      const labelX = mapBounds.x + mapBounds.width - 76;
+      const labelY = clamp(y - 16, mapBounds.y + 6, mapBounds.y + mapBounds.height - 34);
+      drawParallelLabel(labelX, labelY, label, dashed);
+    }
+
+    function drawParallelLabel(x, y, text, dashed) {
+      ctx.save();
+      ctx.font = "800 13px Inter, ui-sans-serif, system-ui, sans-serif";
+      const width = Math.max(58, Math.ceil(ctx.measureText(text).width) + 18);
+      const height = 28;
+      const finalX = clamp(x, mapBounds.x + 6, mapBounds.x + mapBounds.width - width - 6);
+      const finalY = clamp(y, mapBounds.y + 6, mapBounds.y + mapBounds.height - height - 6);
+
+      roundedRect(finalX, finalY, width, height, 8);
+      ctx.fillStyle = dashed ? "rgba(255, 247, 248, 0.92)" : "rgba(210, 31, 43, 0.95)";
+      ctx.strokeStyle = dashed ? "rgba(210, 31, 43, 0.32)" : "rgba(255, 255, 255, 0.66)";
+      ctx.lineWidth = 1;
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = dashed ? "#a31520" : "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, finalX + width / 2, finalY + height / 2 + 0.5);
+      ctx.restore();
+    }
+
+    function roundedRect(x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + width, y, x + width, y + height, r);
+      ctx.arcTo(x + width, y + height, x, y + height, r);
+      ctx.arcTo(x, y + height, x, y, r);
+      ctx.arcTo(x, y, x + width, y, r);
+      ctx.closePath();
+    }
+
+    async function loadData() {
+      setStatus("Loading map data...");
+      const [countryResponse, cityResponse] = await Promise.all([
+        fetch("world-110m.geojson"),
+        fetch("world-cities-50m.geojson")
+      ]);
+
+      if (!countryResponse.ok || !cityResponse.ok) {
+        throw new Error("Map data could not be loaded.");
+      }
+
+      const [countryData, cityData] = await Promise.all([
+        countryResponse.json(),
+        cityResponse.json()
+      ]);
+
+      countries = countryData.features || [];
+      cities = (cityData.features || [])
+        .filter((feature) => feature.geometry && feature.geometry.type === "Point")
+        .map((feature) => {
+          const props = feature.properties || {};
+          const [lon, lat] = feature.geometry.coordinates;
+          return {
+            name: props.NAMEASCII || props.NAME || "City",
+            country: props.ADM0NAME || "",
+            lon,
+            lat,
+            population: Number(props.POP_MAX || props.POP2020 || 0)
+          };
+        })
+        .sort((a, b) => b.population - a.population);
+
+      worldReady = true;
+      setStatus("");
+      updateReadouts();
+      resizeCanvas();
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+      const point = pointerPosition(event);
+      isDragging = true;
+      canvas.setPointerCapture(event.pointerId);
+      setLatitude(yToLatitude(point.y));
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (!isDragging) return;
+      const point = pointerPosition(event);
+      setLatitude(yToLatitude(point.y));
+    });
+
+    canvas.addEventListener("pointerup", (event) => {
+      isDragging = false;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    });
+
+    canvas.addEventListener("pointercancel", () => {
+      isDragging = false;
+    });
+
+    latitudeInput.addEventListener("input", (event) => {
+      setLatitude(Number(event.target.value));
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+
+    resizeCanvas();
+    updateReadouts();
+    loadData().catch((error) => {
+      console.error(error);
+      setStatus("Open this through a local server so the browser can load the GeoJSON files.");
+    });
+  </script>
+</body>
+</html>
